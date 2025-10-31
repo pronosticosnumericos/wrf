@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pronósticos Numéricos | GFS & WRF</title>
+  <meta name="description" content="Visualizador con selector de modelo (GFS / WRF) y mismas variables.">
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <meta property="og:title" content="Pronósticos GFS y WRF">
+  <meta property="og:description" content="Modelos de predicción con las mismas variables y cambio de modelo por pestaña.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tusitio.com">
+  <meta property="og:image" content="og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --color-bg: #f9fafb;
+      --color-primary: #1d4ed8;
+      --color-primary-dark: #1e40af;
+      --color-accent: #2563eb;
+      --color-text: #111827;
+      --color-muted: #6b7280;
+      --spacing: 1rem;
+      --radius: 0.5rem;
+      --transition-speed: 0.3s;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100vh; margin: 0; overflow: hidden; display: flex; flex-direction: column; }
+    body { font-family: 'Inter', sans-serif; background-color: var(--color-bg); color: var(--color-text); line-height: 1.6; }
+    a:focus, button:focus { outline: 2px dashed var(--color-primary-dark); outline-offset: 2px; }
+
+    /* Header */
+    header[role="banner"] { background: var(--color-primary); color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); flex-shrink: 0; }
+    header .container { max-width: 1200px; margin: auto; padding: 0.75rem 1rem; display: flex; align-items: center; justify-content: space-between; gap: var(--spacing); }
+    header h1 { font-weight: 700; font-size: 2.75rem; }
+    header p { font-weight: 400; font-size: 1.875rem; color: #e0e7ff; flex: 1; }
+    #menuToggle { display: none; background: none; border: none; font-size: 1.5rem; color: #fff; cursor: pointer; }
+
+    /* --- Tabs de modelo --- */
+    #modelTabs { background: #fff; border-bottom: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    #modelTabs .inner { max-width: 1200px; margin: auto; padding: 1.5rem 1rem; display:flex; gap:.5rem; align-items:center; }
+    .model-btn { appearance:none; border:1px solid #e5e7eb; background:#fff; color:#111827; padding:.5rem .9rem; border-radius: 999px; font-weight:600; cursor:pointer; transition: background var(--transition-speed), border-color var(--transition-speed); }
+    .model-btn[aria-selected="true"] { background: var(--color-accent); color:#fff; border-color: var(--color-accent); }
+
+    /* Navigation de variables */
+    nav[role="navigation"] { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex-shrink: 0; }
+    #mainNav { max-width: 1200px; margin: auto; display: flex; flex-wrap: wrap; justify-content: center; gap: 0.25rem 0.5rem; padding: 0.25rem 1rem; }
+    .tab-button { padding: 0.4rem 0.8rem; font-size: 0.9rem; font-weight: 600; background: var(--color-accent); color: #fff; border: none; border-radius: var(--radius); cursor: pointer; transition: background var(--transition-speed); }
+    .tab-button:hover, .tab-button.active { background: var(--color-primary-dark); }
+
+    /* Main & iframe container */
+    main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    #iframeContainer { flex: 1; width: 100%; overflow: hidden; display: flex; flex-direction: column; }
+    iframe.viewer { flex: 0 0 auto; width: 100%; border: none; height: 100%; }
+
+    /* Placeholder (cuando GFS aún no existe) */
+    .placeholder { flex:1; display:flex; align-items:center; justify-content:center; padding: 2rem; }
+    .placeholder .box { max-width: 720px; background:#fff; border:1px dashed #c7d2fe; border-radius: 12px; padding: 1rem 1.25rem; color:#374151; text-align:center; }
+    .placeholder h3 { margin-bottom:.4rem; color:#111827; }
+
+    /* Footer */
+    footer[role="contentinfo"] { text-align: center; padding: 2rem 1rem; font-size: 1rem; color: var(--color-muted); background: #fff; box-shadow: 0 -1px 3px rgba(0,0,0,0.1); flex-shrink: 0; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      #menuToggle { display: block; }
+      header p { display: none; }
+      #mainNav { display: none; flex-direction: column; padding: 0; }
+      #mainNav.open { display: flex; }
+      #modelTabs .inner { justify-content:center; }
+    }
+    /* Loader overlay */
+    #loader { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(255,255,255,0.6); backdrop-filter: blur(1px); z-index: 10; gap: .75rem; }
+    #loader .spinner { width: 48px; height: 48px; border: 4px solid #e5e7eb; border-top-color: var(--color-accent); border-radius: 50%; animation: spin 0.9s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ==== Overrides visuales (tema neutro/pro) ==== */
+    :root{
+      --color-bg: #f5f6f8;
+      --color-text: #0f172a;
+      --color-muted: #667085;
+      --color-primary: #334155;
+      --color-primary-dark: #111827;
+      --color-accent: #475569;
+    }
+    header[role="banner"]{ background:#ffffff !important; color:var(--color-text) !important; box-shadow:none !important; border-bottom:1px solid #e5e7eb !important; }
+    header[role="banner"] h1{ color:var(--color-text) !important; }
+    header[role="banner"] p{ color:#6b7280 !important; }
+    body{ background:var(--color-bg) !important; }
+    #modelTabs{ background:transparent !important; border:0 !important; box-shadow:none !important; }
+    .model-btn{ background:#f8fafc !important; color:var(--color-text) !important; border:1px solid #e6e9ef !important; }
+    .model-btn:hover{ background:#eef2f7 !important; }
+    .model-btn[aria-selected="true"]{ background:var(--color-primary) !important; color:#ffffff !important; border-color:var(--color-primary) !important; }
+    .tab-button{ background:#ffffff !important; color:#1f2937 !important; border:1px solid #e6e9ef !important; border-radius:999px !important; }
+    .tab-button:hover{ background:#f6f7fb !important; }
+    .tab-button.active{ background:var(--color-primary-dark) !important; border-color:var(--color-primary-dark) !important; color:#ffffff !important; }
+    #iframeContainer{ background:#ffffff !important; border:1px solid #e5e7eb !important; border-radius:14px !important; box-shadow:0 10px 30px rgba(2, 6, 23, 0.06) !important; }
+    iframe.viewer{ background:#f8fafc !important; }
+    #loader{ background:rgba(255,255,255,0.55) !important; backdrop-filter:blur(2px) !important; }
+    #loader .spinner{ border:4px solid #eef1f6 !important; border-top-color: var(--color-primary) !important; }
+    #loader-text{ color:#334155 !important; }
+    .placeholder .box{ background:#ffffff !important; border:1px dashed #d4dae6 !important; box-shadow:0 8px 24px rgba(2, 6, 23, 0.06) !important; }
+    #modelTabs .inner{ padding-top: .85rem !important; padding-bottom:.85rem !important; }
+    footer[role="contentinfo"]{ background:#ffffff !important; color:#76839a !important; border-top:1px solid #e5e7eb !important; box-shadow:none !important; }
+
+    /* Tipografía mayor y targets cómodos */
+    header[role="banner"] h1{ font-size: clamp(1.9rem, 3.2vw, 2.6rem) !important; line-height: 1.15 !important; letter-spacing: .2px !important; }
+    header[role="banner"] p{ font-size: 1rem !important; }
+    .model-btn{ font-size: 1rem !important; padding: .65rem 1.1rem !important; min-height: 44px !important; line-height: 1.1 !important; }
+    .tab-button{ font-size: 1rem !important; padding: .6rem 1.1rem !important; min-height: 44px !important; line-height: 1.1 !important; border-radius: 999px !important; }
+    .placeholder h3{ font-size: 1.25rem !important; line-height: 1.2 !important; }
+    #loader-text{ font-size: 1rem !important; }
+
+    /* Focus ring limpio (sin línea punteada) */
+    a:focus, button:focus{ outline: none !important; }
+    .model-btn:focus-visible, .tab-button:focus-visible, #menuToggle:focus-visible {
+      outline: none !important;
+      box-shadow: 0 0 0 3px rgba(71, 85, 105, 0.25) !important;
+      border-color: rgba(71, 85, 105, 0.45) !important;
+    }
+    /* === Tamaño de fuente y área clicable más grande === */
+.model-btn{
+  font-size: 1.8rem !important;     /* antes 1rem aprox */
+  padding: .75rem 1.25rem !important; /* más cómodo al tacto */
+  min-height: 44px !important;        /* accesibilidad */
+  line-height: 1.15 !important;
+}
+
+.tab-button{
+  font-size: 1.5rem !important;       /* antes 1rem */
+  padding: .7rem 1.1rem !important;
+  min-height: 44px !important;
+  line-height: 1.15 !important;
+}
+
+/* En móvil, un pelín más compacto pero aún cómodo */
+@media (max-width: 768px){
+  .model-btn{ font-size: 1.15rem !important; padding: .7rem 1.1rem !important; }
+  .tab-button{ font-size: 1.05rem !important; padding: .65rem 1rem !important; }
+}
+
+  </style>
+</head>
+<body>
+  <header role="banner">
+    <div class="container">
+      <h1>Pronósticos Numéricos</h1>
+      <button id="menuToggle" aria-label="Mostrar menú" aria-controls="mainNav" aria-expanded="false">☰</button>
+    </div>
+  </header>
+
+  <!-- Selector de modelo (GFS por defecto) -->
+  <div id="modelTabs" role="tablist" aria-label="Selector de modelo">
+    <div class="inner">
+      <button id="btn-gfs" class="model-btn" role="tab" aria-selected="true" aria-controls="panel-gfs">GFS</button>
+      <button id="btn-wrf" class="model-btn" role="tab" aria-selected="false" aria-controls="panel-wrf">WRF</button>
+    </div>
+  </div>
+
+  <!-- Barra de variables (idéntica para ambos modelos) -->
+  <nav role="navigation" id="mainNav" aria-label="Pestañas de pronóstico">
+    <button class="tab-button" data-page="precipitacion.html" role="tab">Precipitación hora</button>
+    <button class="tab-button" data-page="precipitacionacumulada.html" role="tab">Prec. acumulada</button>
+    <button class="tab-button" data-page="precipitacionacumulada24h.html" role="tab">Prec. 24 h</button>
+    <button class="tab-button" data-page="temperatura2.html" role="tab">Temperatura</button>
+    <button class="tab-button" data-page="viento.html" role="tab">Viento</button>
+    <button class="tab-button" data-page="humedadrelativa.html" role="tab">Humedad rel.</button>
+    <button class="tab-button" data-page="saffirsimpson.html" role="tab">Saffir-Simpson</button>
+  </nav>
+
+  <main>
+    <section id="iframeContainer" style="position:relative">
+      <div id="loader" aria-hidden="true" role="status"><div class="spinner" aria-label="Cargando"></div><div id="loader-text" style="font-weight:600;color:#1f2937;">Cargando…</div></div>
+      <iframe id="viewer" class="viewer" title="Visor" src="" allowfullscreen></iframe>
+      <div id="placeholder" class="placeholder" style="display:none">
+        <div class="box">
+          <h3 id="ph-title">Productos GFS en preparación</h3>
+          <p id="ph-text">
+            Esta variable aún no está disponible para GFS. Puedes verla en <strong>WRF</strong>
+            o regresar al modelo WRF con el conmutador de arriba.
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer role="contentinfo">&copy; 2025 Pronósticos Numéricos</footer>
+
+  <script>
+  (function(){
+    // ==== Elementos base ====
+    var menuToggle = document.getElementById('menuToggle');
+    var mainNav    = document.getElementById('mainNav');
+    var btnGFS     = document.getElementById('btn-gfs');
+    var btnWRF     = document.getElementById('btn-wrf');
+    var viewer     = document.getElementById('viewer');
+    var loader     = document.getElementById('loader');
+    var loaderText = document.getElementById('loader-text');
+    var placeholder= document.getElementById('placeholder');
+
+    var varButtons = (function(){
+      var list = document.querySelectorAll('.tab-button');
+      return Array.prototype.slice.call(list);
+    })();
+
+    // ---- Helpers ----
+    function getLabelForPage(page){
+      for (var i=0;i<varButtons.length;i++){
+        if (getBtnPage(varButtons[i]) === page){
+          return (varButtons[i].textContent || '').trim() || page.replace('.html','');
+        }
+      }
+      return page ? page.replace('.html','') : '';
+    }
+    function getBtnPage(btn){
+      if (!btn) return '';
+      if (btn.getAttribute('data-page')) return btn.getAttribute('data-page');
+      if (btn.getAttribute('data-tab'))  return btn.getAttribute('data-tab');
+      return '';
+    }
+
+    // Estado
+    var currentModel = 'gfs';
+    var currentPage  = getBtnPage(varButtons[0]) || 'precipitacion.html';
+
+    function buildUrl(model, page){
+      var base = (model === 'wrf') ? '' : 'gfs/';
+      var path = base + page; // relativo al mismo directorio
+      var sep = (path.indexOf('?') === -1) ? '?' : '&';
+      return path + sep + '_ts=' + Date.now();
+    }
+
+    function setLoader(show, text){
+      if (!loader) return;
+      loader.style.display = show ? 'flex' : 'none';
+      if (loaderText) loaderText.textContent = text || 'Cargando…';
+    }
+
+    function safeLoad(url, callback){
+      try {
+        var isHttp = (location.protocol.indexOf('http') === 0);
+        if (!isHttp) { callback(true); return; }
+        fetch(url, { method: 'HEAD', cache: 'no-store' })
+          .then(function(res){ callback(res.ok); })
+          .catch(function(){ callback(false); });
+      } catch(e){ callback(false); }
+    }
+
+    function markActive(page){
+      for (var i=0;i<varButtons.length;i++){
+        var btn = varButtons[i];
+        var active = (getBtnPage(btn) === page);
+        if (active) btn.classList.add('active'); else btn.classList.remove('active');
+        btn.setAttribute('aria-selected', active);
+      }
+      btnGFS.setAttribute('aria-selected', currentModel === 'gfs');
+      btnWRF.setAttribute('aria-selected', currentModel === 'wrf');
+    }
+
+    function updateHash(){
+      var hash = '#' + currentModel + '/' + currentPage;
+      if (location.hash !== hash) {
+        try { history.replaceState(null, '', hash); } catch(e){}
+      }
+    }
+
+    // === Ajuste de altura para evitar scroll vertical ===
+    function fitViewerHeight(){
+      var vh = window.innerHeight || document.documentElement.clientHeight;
+      var headerEl   = document.querySelector('header[role="banner"]');
+      var modelTabs  = document.getElementById('modelTabs');
+      var mainNavEl  = document.getElementById('mainNav');
+      var footerEl   = document.querySelector('footer[role="contentinfo"]');
+      var container  = document.getElementById('iframeContainer');
+
+      function h(el){ return el ? Math.ceil(el.getBoundingClientRect().height) : 0; }
+      var used = h(headerEl) + h(modelTabs) + h(mainNavEl) + h(footerEl);
+      var safety = 8;
+      var avail = Math.max(240, vh - used - safety);
+      if (container) container.style.height = avail + 'px';
+    }
+
+    function render(model, page){
+      if (!page) page = 'precipitacion.html';
+      currentModel = model; currentPage = page;
+      markActive(page);
+      setLoader(true, 'Cargando ' + page.replace('.html','') + ' (' + model.toUpperCase() + ')…');
+
+      var url = buildUrl(model, page);
+
+      function finish(){
+        setLoader(false);
+        updateHash();
+        // Reajustar altura al terminar cambios/cargas
+        fitViewerHeight();
+        setTimeout(fitViewerHeight, 200);
+      }
+
+      // Para WRF, cargamos directo
+      if (model === 'wrf'){
+        if (placeholder) placeholder.style.display = 'none';
+        if (viewer) { viewer.style.display = 'block'; }
+        var onLoaded = function(){ if (viewer) viewer.removeEventListener('load', onLoaded); finish(); };
+        if (viewer) {
+          viewer.addEventListener('load', onLoaded);
+          viewer.src = url;
+        } else { finish(); }
+        return;
+      }
+
+      // Para GFS, verifica existencia antes (si falla, muestra placeholder)
+      safeLoad(url.split('?')[0], function(exists){
+        if (exists){
+          if (placeholder) placeholder.style.display = 'none';
+          if (viewer) { viewer.style.display = 'block'; }
+          var onLoaded2 = function(){ if (viewer) viewer.removeEventListener('load', onLoaded2); finish(); };
+          if (viewer) {
+            viewer.addEventListener('load', onLoaded2);
+            viewer.src = url;
+          } else { finish(); }
+        } else {
+          if (viewer) viewer.style.display = 'none';
+          if (placeholder) placeholder.style.display = 'flex';
+          finish();
+        }
+      });
+    }
+
+    // Click en variables
+    for (var i=0;i<varButtons.length;i++){
+      (function(btn){
+        btn.addEventListener('click', function(){
+          var page = getBtnPage(btn) || 'precipitacion.html';
+          render(currentModel, page);
+          if (mainNav && mainNav.classList.contains('open')){
+            mainNav.classList.remove('open');
+            if (menuToggle) menuToggle.setAttribute('aria-expanded', 'false');
+          }
+        });
+      })(varButtons[i]);
+    }
+
+    // Click en tabs de modelo
+    if (btnGFS) btnGFS.addEventListener('click', function(){ render('gfs', currentPage); });
+    if (btnWRF) btnWRF.addEventListener('click', function(){ render('wrf', currentPage); });
+
+    // Alterna menú en móvil
+    if (menuToggle) menuToggle.addEventListener('click', function(){
+      var expanded = (menuToggle.getAttribute('aria-expanded') === 'true');
+      menuToggle.setAttribute('aria-expanded', (!expanded).toString());
+      if (mainNav) mainNav.classList.toggle('open');
+    });
+
+    // Inicializar desde hash (#modelo/pagina)
+    (function(){
+      var h = (location.hash || '').replace('#','');
+      var m = h.split('/');
+      if (m.length === 2){
+        var mm = m[0]; var pp = m[1];
+        if (mm === 'gfs' || mm === 'wrf') currentModel = mm;
+        for (var i=0;i<varButtons.length;i++){
+          if (getBtnPage(varButtons[i]) === pp){ currentPage = pp; break; }
+        }
+      }
+    })();
+
+    // Render inicial + ajuste de altura
+    (function initialRender(){
+      var hasHash = !!location.hash;
+      if (hasHash) { render(currentModel, currentPage); return; }
+      var isHttp = (location.protocol.indexOf('http') === 0);
+      if (!isHttp) { render('wrf', currentPage); return; }
+      var testUrl = 'gfs/' + currentPage;
+      safeLoad(testUrl, function(exists){
+        if (exists) { render('gfs', currentPage); }
+        else { render('wrf', currentPage); }
+      });
+    })();
+
+    // Llamadas iniciales y en cambios de layout
+    fitViewerHeight();
+    window.addEventListener('resize', fitViewerHeight);
+    var roTargets = [
+      document.querySelector('header[role=\"banner\"]'),
+      document.getElementById('modelTabs'),
+      document.getElementById('mainNav'),
+      document.querySelector('footer[role=\"contentinfo\"]')
+    ].filter(Boolean);
+    if ('ResizeObserver' in window){
+      var ro = new ResizeObserver(function(){ fitViewerHeight(); });
+      roTargets.forEach(function(el){ try{ ro.observe(el); }catch(_){} });
+    }
+  })();
+  </script>
+</body>
+</html>
