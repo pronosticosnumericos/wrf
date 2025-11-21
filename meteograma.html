@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Meteograma (demo sin librerías)</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --panel:#fff; --ink:#0f172a; --muted:#667085;
+    --accent:#334155; --border:#e5e7eb;
+    --panel-w: 460px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
+  .layout{max-width:1200px;margin:auto;padding:14px;display:grid;grid-template-columns:1fr;gap:12px}
+  .mapbox{
+    position:relative;background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;
+    min-height:360px;display:grid;place-items:center;box-shadow:0 10px 30px rgba(2,6,23,.06)
+  }
+  .mapbox img{max-width:100%;height:auto;display:block}
+  .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .btn{
+    appearance:none;border:1px solid var(--border);background:#f8fafc;color:var(--ink);
+    padding:.5rem .85rem;border-radius:999px;font-weight:700;cursor:pointer
+  }
+  .btn:hover{background:#eef2f7}
+  select{appearance:none;border:1px solid var(--border);background:#fff;padding:.45rem .6rem;border-radius:10px}
+
+  /* Panel lateral (meteograma) */
+  .meteo-panel{
+    position:fixed;top:0;right:0;height:100%;width:var(--panel-w);max-width:100vw;
+    background:var(--panel);border-left:1px solid var(--border);
+    transform:translateX(100%);transition:transform .28s ease;
+    box-shadow:-18px 0 50px rgba(2,6,23,.10);display:flex;flex-direction:column;z-index:30
+  }
+  .meteo-panel.open{transform:translateX(0)}
+  .meteo-head{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;justify-content:space-between}
+  .meteo-title{margin:0;font-weight:800;font-size:1rem}
+  .meta{font-size:.85rem;color:var(--muted)}
+  .meteo-body{padding:10px 10px 12px;overflow:auto;display:grid;gap:10px}
+  .card{
+    background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,.06)
+  }
+  .card h4{margin:8px 10px 0;font-size:.92rem;color:#111827}
+  .cwrap{padding:8px 10px 12px}
+  canvas{width:100%;height:140px;display:block}
+  .meteo-foot{padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;justify-content:flex-end}
+  .pill{font-size:.82rem;color:var(--muted)}
+  .link{color:var(--accent);text-decoration:none;font-weight:700}
+  .close{border:none;background:#111827;color:#fff;border-radius:999px;padding:.45rem .8rem;cursor:pointer}
+
+  @media (max-width:520px){
+    .card canvas{height:120px}
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <div class="toolbar">
+    <button id="openBtn" class="btn">📈 Meteograma (abrir)</button>
+    <label>Ciudad:
+      <select id="citySel">
+        <option value="19.4326,-99.1332">CDMX</option>
+        <option value="20.9674,-89.5926">Mérida</option>
+        <option value="25.6866,-100.3161">Monterrey</option>
+        <option value="21.1619,-86.8515">Cancún</option>
+      </select>
+    </label>
+    <label>Modelo:
+      <select id="modelSel">
+        <option value="wrf">WRF</option>
+        <option value="gfs">GFS</option>
+      </select>
+    </label>
+    <span class="pill">Tip: haz clic en el mapa para generar meteograma en esa ubicación.</span>
+  </div>
+
+  <div class="mapbox" id="mapBox" aria-label="Mapa (demo)">
+    <!-- Simula tu mapa/iframe: usa tu propio <img> o <iframe> aquí -->
+    <img id="demoMap" src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/Blank_map_of_Mexico.svg/1280px-Blank_map_of_Mexico.svg.png" alt="Mapa demo">
+  </div>
+</div>
+
+<!-- Panel lateral meteograma -->
+<aside id="meteoPanel" class="meteo-panel" aria-label="Meteograma">
+  <div class="meteo-head">
+    <div>
+      <h3 class="meteo-title" id="mtTitle">Meteograma</h3>
+      <div class="meta" id="mtMeta">—</div>
+    </div>
+    <button class="close" id="closeBtn">Cerrar</button>
+  </div>
+
+  <div class="meteo-body">
+    <div class="card">
+      <h4>Temperatura 2 m (°C)</h4>
+      <div class="cwrap"><canvas id="cTemp"></canvas></div>
+    </div>
+    <div class="card">
+      <h4>Precipitación (mm/h)</h4>
+      <div class="cwrap"><canvas id="cPpn"></canvas></div>
+    </div>
+    <div class="card">
+      <h4>Viento 10 m (km/h)</h4>
+      <div class="cwrap"><canvas id="cWind"></canvas></div>
+    </div>
+    <div class="card">
+      <h4>Humedad relativa (%)</h4>
+      <div class="cwrap"><canvas id="cRh"></canvas></div>
+    </div>
+  </div>
+
+  <div class="meteo-foot">
+    <span class="pill" id="mtRange">—</span>
+    <a class="link" id="deepLink" href="#">Compartir</a>
+  </div>
+</aside>
+
+<script>
+(function(){
+  // ======= Utilidades tiempo/datos
+  function hoursFromNow(n){ const d=new Date(); d.setHours(d.getHours()+n,0,0,0); return d; }
+  function formatHour(d){ return d.toLocaleString('es-MX',{weekday:'short',hour:'2-digit',minute:'2-digit'}); }
+  function linspace(n, fn){ const xs=[],ys=[]; for(let i=0;i<n;i++){ xs.push(hoursFromNow(i)); ys.push(fn(i)); } return {t:xs,v:ys}; }
+
+  // ======= Generador dummy por ahora (cámbialo por tu fetch real)
+  async function fetchSeries(model, lat, lon){
+    const N = 72; // 72 horas
+    // ejemplos "realistas" suaves:
+    const baseT = 17 + 8*Math.sin((lat/10)+(0)/2);
+    const temp = linspace(N, i => baseT + 4*Math.sin(i/12) + (Math.random()*0.8-0.4));
+    const ppn  = linspace(N, i => Math.max(0, (Math.sin(i/8+lon)%1 > 0.75 ? Math.random()*6 : Math.random()*1.2)));
+    const wind = linspace(N, i => 10 + 12*Math.abs(Math.sin(i/10)) + Math.random()*3);
+    const rh   = linspace(N, i => 50 + 40*Math.abs(Math.sin(i/14 + lat/20)));
+    const run  = new Date(); // simula hora de corrida
+    return { run, temp, ppn, wind, rh, hours:N };
+  }
+
+  // ======= Mini motor de gráficos Canvas (línea / barras)
+  function drawAxes(ctx, W, H, padding){
+    ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padding, H-padding); ctx.lineTo(W-padding, H-padding); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(padding, padding); ctx.lineTo(padding, H-padding); ctx.stroke();
+  }
+  function scale(tArr, vArr, padding, W, H, vMin, vMax, t0, t1){
+    const tmin = t0 ?? tArr[0].getTime(), tmax = t1 ?? tArr[tArr.length-1].getTime();
+    const vx = t => padding + ( (t - tmin) / (tmax - tmin) ) * (W - 2*padding);
+    const vy = v => (H - padding) - ( (v - vMin) / (vMax - vMin) ) * (H - 2*padding);
+    return {vx, vy, tmin, tmax};
+  }
+  function niceMinMax(vArr, padPct=0.1){
+    let min = Math.min(...vArr), max = Math.max(...vArr);
+    if (min===max){ min-=1; max+=1; }
+    const pad = (max-min)*padPct;
+    return [Math.floor(min - pad), Math.ceil(max + pad)];
+  }
+  function drawLine(ctx, sx, sy, tArr, vArr){
+    ctx.beginPath(); for(let i=0;i<tArr.length;i++){ const x=sx(tArr[i].getTime()), y=sy(vArr[i]); if(i) ctx.lineTo(x,y); else ctx.moveTo(x,y); } ctx.stroke();
+  }
+  function drawBars(ctx, sx, sy, tArr, vArr, barW){
+    ctx.beginPath();
+    for(let i=0;i<tArr.length;i++){
+      const x=sx(tArr[i].getTime()) - barW/2, y=sy(vArr[i]);
+      ctx.rect(x, y, barW, sy(0)-y);
+    }
+    ctx.fill();
+  }
+  function clearCanvas(c){ const ctx=c.getContext('2d'); ctx.clearRect(0,0,c.width,c.height); }
+
+  // Tooltip sencillo
+  function attachTooltip(canvas, tArr, vArr, unit){
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height, padding=34;
+    let t0 = tArr[0].getTime(), t1 = tArr[tArr.length-1].getTime();
+    canvas.onmousemove = e=>{
+      const r = canvas.getBoundingClientRect();
+      const x = e.clientX - r.left;
+      const frac = Math.min(1, Math.max(0, (x - padding)/(W-2*padding)));
+      const ti = t0 + frac*(t1-t0);
+      // encuentra el índice más cercano
+      let idx=0, dmin=Infinity;
+      for(let i=0;i<tArr.length;i++){ const d=Math.abs(tArr[i].getTime()-ti); if(d<dmin){dmin=d; idx=i;} }
+      // dibuja línea guía
+      clearCanvas(canvas);
+      canvas.dispatchEvent(new CustomEvent('redraw')); // el chart vuelve a dibujar su serie
+      ctx.save();
+      ctx.strokeStyle='rgba(51,65,85,.35)'; ctx.lineWidth=1;
+      const xg = padding + ( (tArr[idx].getTime()-t0)/(t1-t0) )*(W-2*padding);
+      ctx.beginPath(); ctx.moveTo(xg, padding-2); ctx.lineTo(xg, H-padding+2); ctx.stroke();
+      ctx.restore();
+      // pequeño tooltip en título (heredado por fuera)
+      const title = canvas.parentElement.parentElement.querySelector('h4');
+      if (title) title.querySelector('small')?.remove();
+      if (title){
+        const s=document.createElement('small');
+        s.style.color='#667085'; s.style.marginLeft='6px'; s.textContent=`${tArr[idx].toLocaleString('es-MX',{weekday:'short',hour:'2-digit'})} • ${vArr[idx].toFixed(1)} ${unit}`;
+        title.appendChild(s);
+      }
+    };
+    canvas.onmouseleave = ()=>{ clearCanvas(canvas); canvas.dispatchEvent(new CustomEvent('redraw')); const title=canvas.parentElement.parentElement.querySelector('h4'); if(title){ const sm=title.querySelector('small'); sm&&sm.remove(); } };
+    // permite a quien dibuja actualizar el rango tiempo (para zoom)
+    canvas.setTimeRange = (a,b)=>{ t0=a; t1=b; canvas.dispatchEvent(new CustomEvent('redraw')); };
+    return { setRange:(a,b)=>canvas.setTimeRange(a,b) };
+  }
+
+  // Dibuja un gráfico (tipo = 'line' | 'bars')
+  function renderChart(canvas, series, options){
+    const {t,v} = series;
+    const ctx = canvas.getContext('2d');
+    const DPR = window.devicePixelRatio || 1;
+    const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
+    canvas.width = Math.round(cssW*DPR); canvas.height = Math.round(cssH*DPR);
+    ctx.scale(DPR,DPR);
+
+    const W = cssW, H = cssH, padding=34;
+    const [vmin,vmax] = options.vmin!=null && options.vmax!=null ? [options.vmin,options.vmax] : niceMinMax(v);
+    const {vx,vy,tmin,tmax} = scale(t,v,padding,W,H,vmin,vmax, options.tmin, options.tmax);
+
+    // Ejes + grid Y
+    drawAxes(ctx,W,H,padding);
+    ctx.strokeStyle='#eef2f7'; ctx.lineWidth=1;
+    const gy = 4;
+    for(let i=1;i<=gy;i++){ const y = padding + i*(H-2*padding)/(gy+0); ctx.beginPath(); ctx.moveTo(padding,y); ctx.lineTo(W-padding,y); ctx.stroke(); }
+
+    // Serie
+    if (options.type==='bars'){
+      ctx.fillStyle = 'rgba(37,99,235,0.55)';
+      const step = (W-2*padding)/ (t.length||1);
+      const barW = Math.max(2, step*0.72);
+      drawBars(ctx, vx, vy, t, v, barW);
+    } else {
+      ctx.strokeStyle = '#334155'; ctx.lineWidth = 2;
+      drawLine(ctx, vx, vy, t, v);
+    }
+
+    // Etiquetas mín/max Y
+    ctx.fillStyle='#667085'; ctx.font='12px system-ui';
+    ctx.fillText(vmax.toFixed(0), 6, padding+6);
+    ctx.fillText(vmin.toFixed(0), 8, H-6);
+
+    // Etiquetas X (cada 12 h aprox)
+    const hours = (t[t.length-1]-t[0]) / 36e5;
+    const stepH = hours>72?24:12;
+    for(let i=0;i<t.length;i++){
+      if (i%stepH===0){
+        const x = vx(t[i].getTime());
+        ctx.fillStyle='#667085'; ctx.fillText(t[i].getHours().toString().padStart(2,'0')+'h', x-10, H-10);
+      }
+    }
+
+    // Redraw hook (para tooltip)
+    canvas.addEventListener('redraw', ()=> renderChart(canvas, series, options), {once:true});
+    return { setRange:(a,b)=>{ options.tmin=a; options.tmax=b; renderChart(canvas, series, options);} };
+  }
+
+  // ======= Wiring UI
+  const panel = document.getElementById('meteoPanel');
+  const openBtn = document.getElementById('openBtn');
+  const closeBtn= document.getElementById('closeBtn');
+  const citySel = document.getElementById('citySel');
+  const modelSel= document.getElementById('modelSel');
+  const mapBox  = document.getElementById('mapBox');
+  const mtTitle = document.getElementById('mtTitle');
+  const mtMeta  = document.getElementById('mtMeta');
+  const mtRange = document.getElementById('mtRange');
+  const deepLink= document.getElementById('deepLink');
+
+  const cTemp = document.getElementById('cTemp');
+  const cPpn  = document.getElementById('cPpn');
+  const cWind = document.getElementById('cWind');
+  const cRh   = document.getElementById('cRh');
+
+  let charts = null;
+
+  async function openMeteogram(model, lat, lon){
+    panel.classList.add('open');
+    mtTitle.textContent = 'Meteograma';
+    mtMeta.textContent  = `Modelo: ${model.toUpperCase()} • Lat: ${lat.toFixed(2)} Lon: ${lon.toFixed(2)}`;
+
+    // Obtener series (reemplaza aquí por fetch real a tu API)
+    const data = await fetchSeries(model, lat, lon);
+
+    // Rango tiempo (para tooltip & deep-link)
+    const t0 = data.temp.t[0].getTime(), t1 = data.temp.t[data.temp.t.length-1].getTime();
+    mtRange.textContent = `${formatHour(data.temp.t[0])} → ${formatHour(data.temp.t[data.temp.t.length-1])}`;
+    deepLink.href = `#/${model}/meteograma?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}&hrs=${data.hours}`;
+
+    // Pintar charts
+    charts = {
+      temp: renderChart(cTemp, data.temp, {type:'line'}),
+      ppn : renderChart(cPpn , data.ppn , {type:'bars', vmin:0, vmax:Math.max(10, Math.ceil(Math.max(...data.ppn.v))) }),
+      wind: renderChart(cWind, data.wind, {type:'line', vmin:0}),
+      rh  : renderChart(cRh  , data.rh  , {type:'line', vmin:0, vmax:100})
+    };
+
+    // Tooltips sobre cada canvas
+    [cTemp,cPpn,cWind,cRh].forEach((cv,i)=>{
+      const s = [data.temp,data.ppn,data.wind,data.rh][i];
+      attachTooltip(cv, s.t, s.v, ['°C','mm/h','km/h','%'][i]);
+    });
+
+    // Sencillo “zoom temporal” arrastrando en el canvas superior
+    let drag=false,x0=0;
+    cTemp.addEventListener('mousedown', e=>{ drag=true; x0=e.offsetX; });
+    window.addEventListener('mouseup', ()=> drag=false);
+    cTemp.addEventListener('mousemove', e=>{
+      if(!drag) return;
+      const rect = cTemp.getBoundingClientRect();
+      const W = rect.width, pad=34;
+      const clamp = x=>Math.min(W-pad,Math.max(pad,x));
+      const a = clamp(x0), b = clamp(e.clientX-rect.left);
+      const [xa,xb] = a<b ? [a,b] : [b,a];
+      const tmin = t0 + ( (xa-pad)/(W-2*pad) )*(t1-t0);
+      const tmax = t0 + ( (xb-pad)/(W-2*pad) )*(t1-t0);
+      charts.temp.setRange(tmin,tmax);
+      charts.ppn .setRange(tmin,tmax);
+      charts.wind.setRange(tmin,tmax);
+      charts.rh  .setRange(tmin,tmax);
+    });
+  }
+
+  function closeMeteogram(){ panel.classList.remove('open'); }
+
+  // Botón abrir: usa ciudad seleccionada
+  openBtn.addEventListener('click', ()=>{
+    const [lat,lon] = citySel.value.split(',').map(parseFloat);
+    openMeteogram(modelSel.value, lat, lon);
+  });
+  closeBtn.addEventListener('click', closeMeteogram);
+
+  // Clic en mapa (demo): convierte a lat/lon de forma ficticia
+  mapBox.addEventListener('click', (e)=>{
+    const r = mapBox.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;  // 0..1
+    const y = (e.clientY - r.top ) / r.height; // 0..1
+    // Mapeo muy burdo solo para demo sobre México:
+    const lon = -118 + x*( -86 - (-118) ); // -118 .. -86
+    const lat =  14  + (1-y)*( 33 - 14 );  // 14 .. 33
+    openMeteogram(modelSel.value, lat, lon);
+  });
+
+  // Deep-link simple: #/wrf/meteograma?lat=..&lon=..
+  (function bootFromHash(){
+    if (!location.hash) return;
+    try{
+      const [_, model, kind] = location.hash.split(/[\/\?]/);
+      if (kind!=='meteograma') return;
+      const qs = new URLSearchParams(location.hash.split('?')[1]||'');
+      const lat = parseFloat(qs.get('lat')), lon = parseFloat(qs.get('lon'));
+      openMeteogram(model||'wrf', lat, lon);
+    }catch{}
+  })();
+})();
+</script>
+</body>
+</html>
+
