@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Pronósticos | GFS & WRF</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#f5f6f8; --panel:#fff; --text:#0f172a; --muted:#667085;
+      --accent:#334155; --border:#e5e7eb;
+      --sidebar-w: 260px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
+
+    .app{
+      display:grid;
+      grid-template-columns: var(--sidebar-w) 1fr;
+      grid-template-rows: 100vh;
+      gap: 0;
+    }
+
+    /* Sidebar */
+    .sidebar{
+      background: var(--panel);
+      border-right:1px solid var(--border);
+      display:flex; flex-direction:column;
+      min-width: 220px;
+    }
+    .side-head{padding:12px 14px;border-bottom:1px solid var(--border)}
+    .side-title{margin:0;font-weight:700;font-size:1.05rem}
+    .side-section{padding:12px 10px}
+    .label{font-size:.78rem;color:var(--muted);font-weight:700;margin:0 4px 6px 4px;text-transform:uppercase;letter-spacing:.04em}
+
+    .model-group{display:flex;gap:6px; padding:6px 8px;}
+    .model-btn{
+      appearance:none; border:1px solid var(--border);
+      background:#f8fafc; color:#1f2937;
+      padding:.45rem .8rem; border-radius:999px;
+      font-weight:700; font-size:.95rem; cursor:pointer;
+    }
+    .model-btn[aria-selected="true"]{ background:var(--accent); color:#fff; border-color:var(--accent); }
+
+    .vars{display:grid; gap:6px; padding:6px 8px; overflow:auto}
+    .var-btn{
+      width:100%; text-align:left;
+      appearance:none; border:1px solid var(--border);
+      background:#fff; color:#1f2937;
+      padding:.5rem .6rem; border-radius:10px;
+      font-weight:600; font-size:.95rem; cursor:pointer;
+    }
+    .var-btn.active{ background:#111827; color:#fff; border-color:#111827; }
+
+    /* Main panel */
+    .main{
+      display:flex; flex-direction:column; height:100vh;
+      padding:10px 12px 12px;
+      gap:10px;
+    }
+
+    /* Viewer area */
+    .viewer-card{
+      position:relative;
+      flex: 1 1 auto;
+      min-height: 280px;
+      border:1px solid var(--border); border-radius:12px;
+      background:var(--panel); box-shadow:0 10px 30px rgba(2,6,23,.06);
+      display:grid; place-items:center; overflow:hidden;
+    }
+    #viewerFrame{ width:100%; height:100%; border:0; background:#f8fafc; display:none; }
+    #viewerImg{ width:100%; height:100%; object-fit:contain; display:none; background:#fff; }
+
+    .placeholder{display:none; align-items:center; justify-content:center; text-align:center; padding:18px}
+    .placeholder .box{
+      max-width:720px; background:#fff; border:1px dashed #d4dae6; border-radius:12px;
+      padding:18px 20px; color:#374151; box-shadow:0 8px 24px rgba(2,6,23,.06)
+    }
+    .placeholder h3{ margin:0 0 6px; font-size:1.1rem }
+
+    /* Controls (secuencias) */
+    .controls{
+      display:grid;
+      grid-template-columns:auto 1fr auto auto;
+      gap:10px; align-items:center;
+      border:1px solid var(--border); border-radius:12px; background:var(--panel);
+      padding:8px 10px; box-shadow:0 6px 18px rgba(0,0,0,.06);
+    }
+    .group{display:flex; gap:6px; align-items:center}
+    .btn{
+      appearance:none; border:1px solid var(--border);
+      background:#f8fafc; color:#1f2937;
+      padding:.45rem .8rem; border-radius:999px; font-weight:700; font-size:.95rem; cursor:pointer;
+    }
+    .btn:hover{ background:#eef2f7 }
+    .label{font-variant-numeric:tabular-nums}
+
+    input[type="range"]{
+      width:100%; appearance:none; height:6px; border-radius:999px; background:#e7edf5; outline:none;
+    }
+    input[type="range"]::-webkit-slider-thumb{
+      appearance:none; width:18px; height:18px; border-radius:50%; background:var(--accent);
+      border:2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.08); cursor:pointer;
+    }
+    input[type="range"]::-moz-range-thumb{
+      width:18px; height:18px; border-radius:50%; background:var(--accent); border:2px solid #fff; cursor:pointer;
+    }
+
+    .topline{font-size:.9rem;color:var(--muted); padding:2px 2px 4px}
+
+    @media (max-width: 880px){
+      :root{ --sidebar-w: 220px; }
+      .var-btn, .model-btn, .btn{ font-size:.9rem }
+    }
+    @media (max-width: 700px){
+      .app{ grid-template-columns: 1fr; grid-template-rows:auto auto 1fr; }
+      .sidebar{ grid-row:1; border-right:none; border-bottom:1px solid var(--border); }
+      .main{ grid-row:2 / span 2; }
+    }
+
+    /* ===== Meteograma (panel lateral) ===== */
+    .meteo-panel{
+      position: fixed; inset: 0 0 0 auto;
+      width: min(760px, 98vw);
+      background: #fff; color: var(--text);
+      border-left: 1px solid var(--border);
+      box-shadow: -12px 0 30px rgba(2,6,23,.12);
+      transform: translateX(100%);
+      transition: transform .28s ease;
+      display: flex; flex-direction: column; z-index: 50;
+    }
+    .meteo-panel.open{ transform: translateX(0); }
+    .meteo-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; border-bottom:1px solid var(--border); }
+    .meteo-title{ margin:0; font-size:1.05rem }
+    .meteo-body{ padding:12px; overflow:auto; display:grid; gap:12px; grid-auto-rows:minmax(200px, auto); }
+    .meteo-body .card{ border:1px solid var(--border); border-radius:12px; background:#fff; padding:12px; box-shadow:0 6px 18px rgba(0,0,0,.06); }
+    .meteo-body .card h4{ margin:0 0 6px; font-size:.98rem; color:#111827 }
+    .cwrap{ width:100%; height: clamp(220px, 34vh, 360px); }
+    .meteo-foot{ padding:10px 12px; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .pill{ background:#f1f5f9; color:#0f172a; border:1px solid #e2e8f0; border-radius:999px; padding:.3rem .6rem; font-size:.85rem; }
+    .link{ color:#334155; text-decoration:underline; font-weight:600 }
+    .close.btn, .close{ cursor:pointer; }
+    .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+    select.city{border:1px solid var(--border); border-radius:10px; padding:.45rem .6rem; background:#fff; font-weight:600}
+    
+    .meteo-body canvas{
+  	display:block;
+  	width:100%;
+  	height:50%;
+  	}
+
+    /* Loader anim */
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar" role="navigation" aria-label="Selector de modelo y variable">
+      <div class="side-head">
+        <h2 class="side-title">Pronósticos Numéricos</h2>
+      </div>
+
+      <div class="side-section">
+        <div class="label">Modelo</div>
+        <div class="model-group">
+          <button id="btn-gfs" class="model-btn" role="tab" aria-selected="true">GFS</button>
+          <button id="btn-wrf" class="model-btn" role="tab" aria-selected="false">WRF</button>
+        </div>
+      </div>
+
+      <div class="side-section" style="flex:1 1 auto; overflow:auto">
+        <div class="label">Variables</div>
+        <div id="vars" class="vars"></div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <div class="topline" id="stateLine">Listo</div>
+
+      <div class="viewer-card" id="viewerCard">
+        <img id="viewerImg" alt="Mapa pronóstico">
+        <iframe id="viewerFrame" title="Visor de variable"></iframe>
+
+        <!-- Placeholder GFS/no disponible -->
+        <div id="placeholder" class="placeholder">
+          <div class="box">
+            <h3 id="ph-title">Productos GFS en preparación</h3>
+            <p id="ph-text">Esta variable aún no está disponible para GFS. Puedes verla en <strong>WRF</strong> o cambiar al modelo WRF con el selector de la izquierda.</p>
+          </div>
+        </div>
+
+        <!-- Loader (simple) -->
+        <div id="loader" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;background:rgba(255,255,255,.55);backdrop-filter:blur(2px);">
+          <div style="display:flex;gap:.6rem;align-items:center;">
+            <div style="width:42px;height:42px;border-radius:50%;border:4px solid #eef1f6;border-top-color:#334155;animation:spin .9s linear infinite"></div>
+            <strong id="loaderText" style="color:#334155;">Cargando…</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controles (para modo sequence) -->
+      <div class="controls" id="controls">
+        <div class="group">
+          <button id="btnPrev" class="btn" type="button" aria-label="Anterior">⟨</button>
+          <button id="btnPlay" class="btn" type="button" aria-label="Reproducir/Pausar">▶︎</button>
+          <button id="btnNext" class="btn" type="button" aria-label="Siguiente">⟩</button>
+        </div>
+        <div class="group" style="gap:10px; flex:1 1 auto;">
+          <input id="frameRange" type="range" min="1" max="168" step="1" value="1" aria-label="Frame (1-168)" />
+          <div class="label"><span id="frameLabel">1</span>/168</div>
+        </div>
+        <div class="group">
+          <label for="speed" class="label" style="min-width:auto;">Vel:</label>
+          <select id="speed" class="btn" aria-label="Velocidad">
+            <option value="1000">1x</option>
+            <option value="500">2x</option>
+            <option value="250">4x</option>
+            <option value="150">6x</option>
+          </select>
+        </div>
+        <div class="group">
+          <button id="openMeteograma" class="btn" type="button">📈 Meteograma</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ===== Panel lateral METEOGRAMA ===== -->
+  <aside id="meteoPanel" class="meteo-panel" aria-label="Meteograma">
+    <div class="meteo-head">
+      <div class="row">
+        <h3 class="meteo-title" id="mtTitle" style="margin-right:6px">Meteograma</h3>
+        <select id="citySelect" class="city" title="Ciudad"></select>
+        <small id="mtMeta" class="pill"></small>
+      </div>
+      <button class="close btn" id="closeBtn">Cerrar</button>
+    </div>
+    <div class="meteo-body">
+      <div class="card"><h4>Temperatura 2 m (°C)</h4><div class="cwrap"><canvas id="cTemp"></canvas></div></div>
+      <div class="card"><h4>Precipitación (mm/h)</h4><div class="cwrap"><canvas id="cPpn"></canvas></div></div>
+      <div class="card"><h4>Viento 10 m (km/h)</h4><div class="cwrap"><canvas id="cWind"></canvas></div></div>
+      <div class="card"><h4>Humedad relativa (%)</h4><div class="cwrap"><canvas id="cRh"></canvas></div></div>
+    </div>
+    <div class="meteo-foot">
+      <span class="pill" id="mtRange">—</span>
+      <a class="link" id="deepLink" href="#">Compartir</a>
+    </div>
+  </aside>
+
+  <!-- meteograma.js -->
+  <script src="meteograma.js" defer></script>
+
+  <!-- Script del viewer (igual que el tuyo) -->
+  <script>
+  (function(){
+    var CONFIG = {
+      gfs: [
+        { key:'precipitacion', label:'Precipitación hora', type:'page', page:'gfs/precipitacion.html', gfs:false },
+        { key:'temperatura',   label:'Temperatura',       type:'page', page:'gfs/temperatura2.html', gfs:false },
+      ],
+      wrf: [
+        { key:'precipitacion',            label:'Precipitación hora',    type:'page', page:'precipitacion.html' },
+        { key:'precipitacionacumulada',   label:'Prec. acumulada',       type:'page', page:'precipitacionacumulada.html' },
+        { key:'precipitacionacumulada24h',label:'Prec. 24 h',            type:'page', page:'precipitacionacumulada24h.html' },
+        { key:'t2m', label:'Temperatura 2 m', type:'sequence', prefix:'tmp/t2m', suffix:'.jpg', count:168, start:1 },
+        { key:'viento',                   label:'Viento',                 type:'page', page:'viento.html' },
+        { key:'humedadrelativa',          label:'Humedad rel.',           type:'page', page:'humedadrelativa.html' },
+        { key:'saffirsimpson',            label:'Saffir-Simpson',         type:'page', page:'saffirsimpson.html' }
+      ]
+    };
+
+    var currentModel = 'wrf';
+    var currentVarKey = 'precipitacion';
+
+    var varsWrap = document.getElementById('vars');
+    var btnGFS = document.getElementById('btn-gfs');
+    var btnWRF = document.getElementById('btn-wrf');
+
+    var img = document.getElementById('viewerImg');
+    var frame = document.getElementById('viewerFrame');
+    var placeholder = document.getElementById('placeholder');
+    var loader = document.getElementById('loader');
+    var loaderText = document.getElementById('loaderText');
+    var stateLine = document.getElementById('stateLine');
+
+    var btnPrev = document.getElementById('btnPrev');
+    var btnPlay = document.getElementById('btnPlay');
+    var btnNext = document.getElementById('btnNext');
+    var range = document.getElementById('frameRange');
+    var label = document.getElementById('frameLabel');
+    var speedSel = document.getElementById('speed');
+
+    function setLoader(show, text){
+      if (!loader) return;
+      loader.style.display = show ? 'flex' : 'none';
+      if (loaderText) loaderText.textContent = text || 'Cargando…';
+    }
+    function updateStateLine(txt){ stateLine.textContent = txt; }
+
+    function getVarList(model){ return CONFIG[model] || []; }
+    function getVar(model, key){
+      var list = getVarList(model);
+      for (var i=0;i<list.length;i++) if (list[i].key === key) return list[i];
+      return list[0] || null;
+    }
+
+    function renderVarButtons(){
+      varsWrap.innerHTML = '';
+      var list = getVarList(currentModel);
+      list.forEach(function(v){
+        var b = document.createElement('button');
+        b.className = 'var-btn' + (v.key === currentVarKey ? ' active' : '');
+        b.textContent = v.label;
+        b.setAttribute('data-key', v.key);
+        b.addEventListener('click', function(){
+          currentVarKey = v.key;
+          Array.from(varsWrap.children).forEach(function(el){ el.classList.remove('active'); });
+          b.classList.add('active');
+          render();
+        });
+        varsWrap.appendChild(b);
+      });
+    }
+
+    function showFrame(url){
+      placeholder.style.display = 'none';
+      img.style.display = 'none';
+      frame.style.display = 'block';
+      setLoader(true, 'Cargando página…');
+      frame.onload = function(){ setLoader(false); };
+      frame.src = url + (url.indexOf('?')>-1 ? '&' : '?') + '_ts=' + Date.now();
+      document.getElementById('controls').style.display = 'none';
+    }
+
+    var playing = false, timer = null, speed = 1000, idx = 1, seqCfg = null;
+    function seqSrc(i){ return seqCfg.prefix + i + (seqCfg.suffix||'.jpg'); }
+    function seqUpdate(i){ idx = i; img.src = seqSrc(idx); range.value = idx; label.textContent = String(idx); }
+    function seqStep(delta){ var next = idx + delta; if (next > seqCfg.end) next = seqCfg.start; if (next < seqCfg.start) next = seqCfg.end; seqUpdate(next); }
+    function seqPlay(){ if (playing) return; playing = true; btnPlay.textContent = '⏸'; timer = setInterval(function(){ seqStep(1); }, speed); }
+    function seqPause(){ playing = false; btnPlay.textContent = '▶︎'; if (timer){ clearInterval(timer); timer = null; } }
+    function showSequence(v){
+      var start = v.start || 1, count = v.count || 168;
+      seqCfg = { prefix:v.prefix, suffix:v.suffix||'.jpg', start:start, end:start + count - 1 };
+      placeholder.style.display = 'none'; frame.style.display = 'none'; img.style.display = 'block';
+      range.min = seqCfg.start; range.max = seqCfg.end; range.step = 1;
+      idx = seqCfg.start; seqPause(); speed = parseInt(speedSel.value,10) || 1000; seqUpdate(idx);
+      document.getElementById('controls').style.display = 'grid';
+    }
+
+    range.addEventListener('input', function(){ seqPause(); seqUpdate(parseInt(this.value,10)); });
+    btnPrev.addEventListener('click', function(){ seqPause(); seqStep(-1); });
+    btnNext.addEventListener('click', function(){ seqPause(); seqStep(1); });
+    btnPlay.addEventListener('click', function(){ playing ? seqPause() : seqPlay(); });
+    speedSel.addEventListener('change', function(){ speed = parseInt(this.value,10)||1000; if (playing){ seqPause(); seqPlay(); } });
+
+    function render(){
+      btnGFS.setAttribute('aria-selected', currentModel==='gfs');
+      btnWRF.setAttribute('aria-selected', currentModel==='wrf');
+
+      var v = getVar(currentModel, currentVarKey);
+      if (!v){ updateStateLine('Sin variable'); return; }
+      updateStateLine('Modelo: ' + currentModel.toUpperCase() + ' • Variable: ' + v.label);
+
+      if (currentModel==='gfs' && v.gfs === false){
+        img.style.display = 'none'; frame.style.display = 'none'; document.getElementById('controls').style.display = 'none';
+        placeholder.style.display = 'flex'; return;
+      }
+      if (v.type === 'page'){ showFrame(v.page); }
+      else if (v.type === 'sequence'){ showSequence(v); }
+    }
+
+    btnGFS.addEventListener('click', function(){ currentModel = 'gfs'; renderVarButtons(); render(); });
+    btnWRF.addEventListener('click', function(){ currentModel = 'wrf'; renderVarButtons(); render(); });
+
+    document.getElementById('openMeteograma').addEventListener('click', function(){
+      if (window.Meteo && Meteo.open) Meteo.open('ciudad-de-mexico'); // default
+    });
+
+    renderVarButtons();
+    render();
+  })();
+  </script>
+</body>
+</html>
+

@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pronósticos Numéricos | Weather Research & Forecast</title>
+  <meta name="description" content="Pronósticos detallados del modelo WRF para México, Golfo de México y Pacífico Oriental con resolución de 15 km: precipitación, temperatura, viento y humedad.">
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <!-- Open Graph -->
+  <meta property="og:title" content="Pronósticos WRF 7 días">
+  <meta property="og:description" content="Modelos de predicción WRF: precipitación, temperatura, viento y humedad para México y regiones aledañas.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tusitio.com">
+  <meta property="og:image" content="og-image.png">
+  <!-- Google Font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --color-bg: #f9fafb;
+      --color-primary: #1d4ed8;
+      --color-primary-dark: #1e40af;
+      --color-accent: #2563eb;
+      --color-text: #111827;
+      --color-muted: #6b7280;
+      --spacing: 1rem;
+      --radius: 0.5rem;
+      --transition-speed: 0.3s;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      height: 100vh;
+      margin: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--color-bg);
+      color: var(--color-text);
+      line-height: 1.6;
+    }
+    a:focus, button:focus {
+      outline: 2px dashed var(--color-primary-dark);
+      outline-offset: 2px;
+    }
+
+    /* Header */
+    header[role="banner"] {
+      background: var(--color-primary);
+      color: #fff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      flex-shrink: 0;
+    }
+    header .container {
+      max-width: 1200px;
+      margin: auto;
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--spacing);
+    }
+    header h1 {
+      font-weight: 700;
+      font-size: 1.75rem;
+    }
+    header p {
+      font-weight: 400;
+      font-size: 0.875rem;
+      color: #e0e7ff;
+      flex: 1;
+    }
+    #menuToggle {
+      display: none;
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    /* Navigation */
+    nav[role="navigation"] {
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      flex-shrink: 0;
+    }
+    #mainNav {
+      max-width: 1200px;
+      margin: auto;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.25rem 0.5rem;
+      padding: 0.25rem 1rem;
+    }
+    .tab-button {
+      padding: 0.4rem 0.8rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      background: var(--color-accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background var(--transition-speed);
+    }
+    .tab-button:hover,
+    .tab-button.active {
+      background: var(--color-primary-dark);
+    }
+
+    /* Main & iframe container */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #iframeContainer {
+      flex: 1;
+      margin: 0;
+      width: 100%;
+      max-width: none;
+      border-radius: 0;
+      box-shadow: none;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .tab-content {
+      flex: 1;
+      width: 100%;
+      border: none;
+      opacity: 0;
+      transition: opacity var(--transition-speed) ease-in-out;
+      display: none;
+      height: 100% !important;
+    }
+    .tab-content.active {
+      display: block;
+      opacity: 1;
+    }
+
+    /* Footer */
+    footer[role="contentinfo"] {
+      text-align: center;
+      padding: 2rem 1rem;
+      font-size: 1rem;
+      color: var(--color-muted);
+      background: #fff;
+      box-shadow: 0 -1px 3px rgba(0,0,0,0.1);
+      flex-shrink: 0;
+    }
+
+    /* Responsive: móvil */
+    @media (max-width: 768px) {
+      #menuToggle {
+        display: block;
+      }
+      header p {
+        display: none;
+      }
+      #mainNav {
+        display: none;
+        flex-direction: column;
+        padding: 0;
+      }
+      #mainNav.open {
+        display: flex;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header role="banner">
+    <div class="container">
+      <h1>Pronósticos Numéricos</h1>
+      <p>Pronósticos del modelo WRF para los próximos 7 días — Cobertura: México, Golfo de México y Pacífico Oriental — Resolución: 15 km</p>
+      <button id="menuToggle" aria-label="Mostrar menú" aria-controls="mainNav" aria-expanded="false">☰</button>
+    </div>
+  </header>
+
+  <nav role="navigation" id="mainNav" aria-label="Pestañas de pronóstico">
+    <button class="tab-button" data-tab="precipitacion.html" role="tab">Precipitación hora</button>
+    <button class="tab-button" data-tab="precipitacionacumulada.html" role="tab">Prec. acumulada</button>
+    <button class="tab-button" data-tab="precipitacionacumulada24h.html" role="tab">Prec. 24 h</button>
+    <button class="tab-button" data-tab="temperatura.html" role="tab">Temperatura</button>
+    <button class="tab-button" data-tab="viento.html" role="tab">Viento</button>
+    <button class="tab-button" data-tab="humedadrelativa.html" role="tab">Humedad rel.</button>
+    <button class="tab-button" data-tab="saffirsimpson.html" role="tab">Saffir-Simpson</button>
+  </nav>
+
+  <main>
+    <section id="iframeContainer">
+      <iframe src="precipitacion.html" class="tab-content" data-tab="precipitacion.html" allowfullscreen aria-labelledby="tab-precipitacion"></iframe>
+      <iframe src="precipitacionacumulada.html" class="tab-content" data-tab="precipitacionacumulada.html" allowfullscreen aria-labelledby="tab-precipitacionacumulada"></iframe>
+      <iframe src="precipitacionacumulada24h.html" class="tab-content" data-tab="precipitacionacumulada24h.html" allowfullscreen aria-labelledby="tab-precipitacionacumulada24h"></iframe>
+      <iframe src="temperatura.html" class="tab-content" data-tab="temperatura.html" allowfullscreen aria-labelledby="tab-temperatura"></iframe>
+      <iframe src="viento.html" class="tab-content" data-tab="viento.html" allowfullscreen aria-labelledby="tab-viento"></iframe>
+      <iframe src="humedadrelativa.html" class="tab-content" data-tab="humedadrelativa.html" allowfullscreen aria-labelledby="tab-humedadrelativa"></iframe>
+      <iframe src="saffirsimpson.html" class="tab-content" data-tab="saffirsimpson.html" allowfullscreen aria-labelledby="tab-saffirsimpson"></iframe>
+    </section>
+  </main>
+
+  <footer role="contentinfo">
+    &copy; 2026 Weather Research & Forecast
+  </footer>
+
+  <script>
+    const buttons = document.querySelectorAll('.tab-button');
+    const frames = document.querySelectorAll('.tab-content');
+    const menuToggle = document.getElementById('menuToggle');
+    const mainNav = document.getElementById('mainNav');
+
+    function activateTab(tabSrc) {
+      buttons.forEach(btn => {
+        const isActive = btn.getAttribute('data-tab') === tabSrc;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-selected', isActive);
+      });
+      frames.forEach(frame => frame.classList.toggle('active', frame.getAttribute('data-tab') === tabSrc));
+    }
+
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        activateTab(btn.getAttribute('data-tab'));
+        if (mainNav.classList.contains('open')) {
+          mainNav.classList.remove('open');
+          menuToggle.setAttribute('aria-expanded', false);
+        }
+      });
+    });
+
+    // Alterna menú en móvil
+    menuToggle.addEventListener('click', () => {
+      const expanded = menuToggle.getAttribute('aria-expanded') === 'true';
+      menuToggle.setAttribute('aria-expanded', !expanded);
+      mainNav.classList.toggle('open');
+    });
+
+    // Activar primer tab al cargar
+    if (buttons.length) activateTab(buttons[0].getAttribute('data-tab'));
+  </script>
+</body>
+</html>
+
+
