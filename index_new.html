@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Pronóstico WRF con Contours Vectoriales</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <style>
+    html, body { height:100%; margin:0; }
+    #map { width:100%; height:100%; }
+    #controls {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.9);
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-family: sans-serif;
+      z-index: 1000;
+    }
+    #controls input[type=range] {
+      vertical-align: middle;
+      width: 200px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+  <div id="controls">
+    <button id="prev">◀</button>
+    <input id="slider" type="range" min="0" max="167" step="1" value="0">
+    <span id="timeLabel">Hora 0</span>
+    <button id="next">▶</button>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const TOTAL = 168;
+    let current = 0;
+    let contourLayer = null;
+
+    // Inicializa mapa
+    const map = L.map('map').setView([23.0, -102.0], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    // Referencias DOM
+    const slider    = document.getElementById('slider');
+    const timeLabel = document.getElementById('timeLabel');
+    document.getElementById('prev').onclick = () => showFrame(current - 1);
+    document.getElementById('next').onclick = () => showFrame(current + 1);
+    slider.oninput = () => showFrame(+slider.value);
+
+    // Función para cargar y mostrar un contorno
+    async function showFrame(i) {
+      // Wrap-around
+      if (i < 0)       i = TOTAL - 1;
+      else if (i >= TOTAL) i = 0;
+      current = i;
+      slider.value = i;
+      timeLabel.textContent = `Hora ${i}`;
+
+      // Elimina capa previa
+      if (contourLayer) map.removeLayer(contourLayer);
+
+      // Carga GeoJSON
+      const url  = `contours/contours_${String(i).padStart(3,'0')}.geojson`;
+      const data = await fetch(url).then(r => r.json());
+
+      // Añade como capa vectorial
+      contourLayer = L.geoJSON(data, {
+        style: feature => ({
+          color: getColor(+feature.properties.level),
+          weight: 1.5
+        }),
+        onEachFeature: (feature, layer) => {
+          layer.bindPopup(`Nivel: ${feature.properties.level} mm`);
+        }
+      }).addTo(map);
+    }
+
+    // Asigna color según el nivel del contour
+    function getColor(lvl) {
+      return   lvl >= 150 ? '#800026'
+             : lvl >= 100 ? '#BD0026'
+             : lvl >=  75 ? '#E31A1C'
+             : lvl >=  50 ? '#FC4E2A'
+             : lvl >=  20 ? '#FD8D3C'
+             : lvl >=  10 ? '#FEB24C'
+             : lvl >=   5 ? '#FED976'
+             : lvl >=   1 ? '#FFEDA0'
+                           : '#FFFFFF';
+    }
+
+    // Arranca mostrando la primera hora
+    showFrame(0);
+  </script>
+</body>
+</html>
+
