@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Image Player</title>
+  <meta charset='utf-8' />
+  <link rel="stylesheet" href="css/jsAnimation.css">
+  <script src="imageplayer.js"></script>
+  <style>
+    /* Estilos adicionales para mejorar la visualización */
+    #slideshow {
+      text-align: center;
+      margin: 20px;
+    }
+    #slideshow_content input {
+      height: 40px;
+      width: 200px;
+      margin: 5px;
+      float: right;
+    }
+    #slideshow_content:after {
+      content: "";
+      display: block;
+      clear: both;
+    }
+    #slideshow_content img {
+      width: 1050px;
+      height: 600px;
+      display: none;
+    }
+    #slideshow_content img:first-of-type {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="slideshow">
+    <div id="slideshow_content" style="padding: 5px;">
+      <input type="button" value="Play" onclick="playimage();" />
+      <input type="button" value="Pause" onclick="pauseimage();" /> 
+      <input type="button" value="Stop" onclick="stopimage();" />
+      <img src="/home/climdes1/WRF/ARWpost/01-WRF-00z-24h.jpg" class="center" />
+      <img src="/home/climdes1/WRF/ARWpost/02-WRF-00z-48h.jpg" class="center" />
+      <img src="/home/climdes1/WRF/ARWpost/03-WRF-00z-72h.jpg" class="center" />
+    </div>
+  </div>
+  
+  <script>
+    function Player() {
+      var rotator = document.getElementById('slideshow_content');
+      var images = rotator.getElementsByTagName('img');
+      var intervalID;
+      var counter = 0;
+
+      function animate() {
+        for (var i = 0; i < images.length; i++) {
+          images[i].style.display = 'none';
+        }
+        images[counter].style.display = 'block';
+        counter = (counter + 1) % images.length;
+      }
+
+      this.pause = function () {
+        if (intervalID !== undefined) {
+          window.clearInterval(intervalID);
+          intervalID = undefined;
+        }
+      };
+
+      this.stop = function () {
+        this.pause();
+        for (var i = 0; i < images.length; i++) {
+          images[i].style.display = 'none';
+        }
+      };
+
+      this.play = function () {
+        if (intervalID === undefined) {
+          intervalID = window.setInterval(animate, 1000);
+        }
+      };
+
+      // Inicialmente, mostramos solo la primera imagen
+      for (var i = 0; i < images.length; i++) {
+        images[i].style.display = (i === 0) ? 'block' : 'none';
+      }
+    }
+
+    var player;
+
+    function playimage() {
+      player.play();
+    }
+
+    function pauseimage() {
+      player.pause();
+    }
+
+    function stopimage() {
+      player.stop();
+    }
+
+    function Page_Load() {
+      player = new Player();
+      player.play();
+    }
+
+    document.onreadystatechange = function () {
+      if (document.readyState === 'complete') {
+        Page_Load();
+      }
+    };
+  </script>
+</body>
+</html>
+
+

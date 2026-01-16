@@ -1,0 +1,57 @@
+MouseEvent.mozPressure is deprecated. Use PointerEvent.pressure instead. leaflet.js:5:320
+MouseEvent.mozInputSource is deprecated. Use PointerEvent.pointerType instead. leaflet.js:5:320
+GET
+https://b.tile.openstreetmap.org/5/9/13.png
+[HTTP/3 200  0ms]
+
+GET
+https://c.tile.openstreetmap.org/5/9/14.png
+
+GET
+https://a.tile.openstreetmap.org/6/14/28.png
+
+GET
+https://b.tile.openstreetmap.org/6/15/28.png
+[HTTP/2 200  0ms]
+
+GET
+https://c.tile.openstreetmap.org/6/14/27.png
+
+GET
+https://a.tile.openstreetmap.org/6/15/27.png
+
+GET
+https://b.tile.openstreetmap.org/6/14/29.png
+
+GET
+https://c.tile.openstreetmap.org/6/15/29.png
+
+GET
+https://c.tile.openstreetmap.org/6/13/28.png
+[HTTP/3 200  0ms]
+
+GET
+https://c.tile.openstreetmap.org/6/16/28.png
+[HTTP/3 200  0ms]
+
+GET
+https://b.tile.openstreetmap.org/6/13/27.png
+[HTTP/3 200  0ms]
+
+GET
+https://b.tile.openstreetmap.org/6/16/27.png
+[HTTP/2 200  0ms]
+
+GET
+https://a.tile.openstreetmap.org/6/13/29.png
+[HTTP/3 200  0ms]
+
+GET
+https://a.tile.openstreetmap.org/6/16/29.png
+[HTTP/3 200  0ms]
+
+GET
+data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=
+
+Object { click: (2) […], node: (2) […], idx: (2) […] }
+index_new.html:129:15

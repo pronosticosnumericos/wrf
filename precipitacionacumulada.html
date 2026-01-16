@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>ImagePlayer</title>
+    <meta charset='utf-8' />
+    <script src='imageplayer.js'></script>
+  </head>
+  <body style='background-color: #ffffff;'>
+    <div id='ipDiv'></div>
+    <script>
+      // Generar un array con las imágenes desde 'prcpacum/1.jpg' hasta 'prcpacum/169.jpg'
+      var imagesArray = [];
+      for (var i = 1; i <= 168; i++) {
+        imagesArray.push('prcpacum/' + i + '.jpg');
+      }
+
+      ip = new ImagePlayer({
+        element: 'ipDiv',
+        images: imagesArray,
+        autoplay: 200,
+        interval: 200,
+        width : "500px",
+        height : "1000px",
+        icondir: './'
+      });
+    </script>
+  </body>
+</html>

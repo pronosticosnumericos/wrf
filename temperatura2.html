@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Visor con barra 0–168</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root{
+        --wrap-w: min(100%, 1000px);
+        --panel-bg: #ffffff;
+        --border: #e5e7eb;
+        --muted: #667085;
+        --text: #0f172a;
+        --accent: #334155;
+      }
+      body{ margin:0; background:#f5f6f8; color:var(--text); font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial; }
+      #ipWrap{
+        width: var(--wrap-w);
+        aspect-ratio: 12/4;      /* cambia a 16/9 si tus mapas son panorámicos */
+        margin: 16px auto 0;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+        background: #fff;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+        display: grid;
+        place-items: center;
+      }
+      #viewerImg{
+        width: 100%;
+        height: 80%;
+        object-fit: contain;      /* mantiene la imagen completa sin recortar */
+        display: block;
+        background: #fff;
+      }
+
+      /* Controles arriba o abajo del mapa (elige uno de los contenedores) */
+      .controls{
+        width: var(--wrap-w);
+        margin: 10px auto 18px;
+        background: var(--panel-bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+        padding: 10px 12px;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 10px;
+        align-items: center;
+      }
+      .btn{
+        appearance: none; border:1px solid var(--border);
+        background:#f8fafc; color:var(--text);
+        padding:.5rem .9rem; border-radius: 999px;
+        font-weight:600; cursor:pointer;
+      }
+      .btn:hover{ background:#eef2f7; }
+      .btn:active{ transform: translateY(1px); }
+
+      .range-wrap{
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px; align-items: center;
+      }
+      input[type="range"]{
+        width: 100%;
+        appearance: none;
+        height: 6px; border-radius: 999px;
+        background: #e7edf5; outline: none;
+      }
+      input[type="range"]::-webkit-slider-thumb{
+        appearance:none; width:18px; height:18px; border-radius:50%;
+        background: var(--accent); border:2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.08);
+        cursor:pointer;
+      }
+      input[type="range"]::-moz-range-thumb{
+        width:18px; height:18px; border-radius:50%;
+        background: var(--accent); border:2px solid #fff; cursor:pointer;
+      }
+      .label{
+        font-variant-numeric: tabular-nums;
+        color: var(--muted);
+        font-weight: 600;
+        min-width: 5ch; text-align: right;
+      }
+
+      .group{
+        display: flex; gap: 8px; align-items: center;
+      }
+
+      /* (Opcional) Controles también arriba */
+      .controls.top{ margin-top: 16px; }
+      .controls.bottom{ margin-top: 10px; }
+
+      @media (max-width: 768px){
+        .controls{ grid-template-columns: 1fr; gap: 12px; }
+        .group{ justify-content: center; }
+        .range-wrap{ grid-template-columns: 1fr; }
+        .label{ text-align: center; }
+      }
+    </style>
+  </head>
+  <body>
+
+    <!-- Controles ARRIBA (si los prefieres arriba, deja este bloque; si no, bórralo) -->
+    <div class="controls top" id="controlsTop">
+      <div class="group">
+        <button id="btnPrev" class="btn" type="button" aria-label="Anterior">⟨</button>
+        <button id="btnPlay" class="btn" type="button" aria-label="Reproducir/Pausar">▶︎</button>
+        <button id="btnNext" class="btn" type="button" aria-label="Siguiente">⟩</button>
+      </div>
+      <div class="range-wrap">
+        <input id="frameRange" type="range" min="1" max="168" step="1" value="1" aria-label="Frame (1-168)">
+        <div class="label"><span id="frameLabel">1</span>/168</div>
+      </div>
+      <div class="group">
+        <label for="speed" class="label" style="min-width:auto;">Vel:</label>
+        <select id="speed" class="btn" aria-label="Velocidad">
+          <option value="1000">1x</option>
+          <option value="500">2x</option>
+          <option value="250">4x</option>
+          <option value="150">6x</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- MAPA -->
+    <div id="ipWrap">
+      <img id="viewerImg" alt="Mapa pronóstico" src="tmp/t2m1.jpg">
+    </div>
+
+    <!-- Controles ABAJO (si los prefieres abajo, deja este bloque; si no, bórralo) -->
+    <div class="controls bottom" id="controlsBottom" style="display:none">
+      <div class="group">
+        <button class="btn" type="button" data-cmd="prev">⟨</button>
+        <button class="btn" type="button" data-cmd="play">▶︎</button>
+        <button class="btn" type="button" data-cmd="next">⟩</button>
+      </div>
+      <div class="range-wrap">
+        <input type="range" min="1" max="168" step="1" value="1" data-role="range">
+        <div class="label"><span data-role="label">1</span>/168</div>
+      </div>
+      <div class="group">
+        <label class="label" style="min-width:auto;">Vel:</label>
+        <select class="btn" data-role="speed">
+          <option value="1000">1x</option>
+          <option value="500">2x</option>
+          <option value="250">4x</option>
+          <option value="150">6x</option>
+        </select>
+      </div>
+    </div>
+
+    <script>
+      (function(){
+        // Config
+        var minF = 1, maxF = 168, prefix = 'tmp/t2m', suffix = '.jpg';
+        var idx = 1, timer = null, playing = false, speed = 1000;
+
+        // Elementos (controles superiores)
+        var img = document.getElementById('viewerImg');
+        var range = document.getElementById('frameRange');
+        var label = document.getElementById('frameLabel');
+        var btnPrev = document.getElementById('btnPrev');
+        var btnPlay = document.getElementById('btnPlay');
+        var btnNext = document.getElementById('btnNext');
+        var speedSel= document.getElementById('speed');
+
+        function srcFor(i){ return prefix + i + suffix; }
+
+        function updateImage(i){
+          idx = i;
+          img.src = srcFor(idx);
+          range.value = idx;
+          label.textContent = String(idx);
+        }
+
+        function step(delta){
+          var next = idx + delta;
+          if (next > maxF) next = minF;
+          if (next < minF) next = maxF;
+          updateImage(next);
+        }
+
+        function play(){
+          if (playing) return;
+          playing = true;
+          btnPlay.textContent = '⏸';
+          timer = setInterval(function(){ step(1); }, speed);
+        }
+
+        function pause(){
+          playing = false;
+          btnPlay.textContent = '▶︎';
+          if (timer){ clearInterval(timer); timer = null; }
+        }
+
+        // Eventos
+        range.addEventListener('input', function(){  // se activa mientras arrastras
+          pause(); // si quieres que siga reproduciendo al soltar, quita esta línea
+          updateImage(parseInt(this.value, 10));
+        });
+
+        btnPrev.addEventListener('click', function(){ pause(); step(-1); });
+        btnNext.addEventListener('click', function(){ pause(); step(1); });
+        btnPlay.addEventListener('click', function(){ playing ? pause() : play(); });
+
+        speedSel.addEventListener('change', function(){
+          speed = parseInt(this.value, 10) || 1000;
+          if (playing){ pause(); play(); } // reinicia con nueva velocidad
+        });
+
+        // Soporte teclado: ← / → para navegar
+        window.addEventListener('keydown', function(e){
+          if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
+          if (e.key === 'ArrowLeft'){ pause(); step(-1); }
+          if (e.key === 'ArrowRight'){ pause(); step(1); }
+          if (e.key === ' '){ e.preventDefault(); (playing ? pause() : play()); }
+        });
+
+        // Inicial
+        updateImage(idx);
+
+        // ======== (Opcional) Sincroniza controles INFERIORES si los usas ========
+        var controlsBottom = document.getElementById('controlsBottom');
+        if (controlsBottom && controlsBottom.style.display !== 'none'){
+          var bPrev = controlsBottom.querySelector('[data-cmd="prev"]');
+          var bPlay = controlsBottom.querySelector('[data-cmd="play"]');
+          var bNext = controlsBottom.querySelector('[data-cmd="next"]');
+          var bRange= controlsBottom.querySelector('[data-role="range"]');
+          var bLabel= controlsBottom.querySelector('[data-role="label"]');
+          var bSpeed= controlsBottom.querySelector('[data-role="speed"]');
+
+          function sync(){
+            bRange.value = idx; bLabel.textContent = String(idx);
+            bPlay.textContent = playing ? '⏸' : '▶︎';
+          }
+          function updateBoth(i){ updateImage(i); sync(); }
+          function playBoth(){ play(); sync(); }
+          function pauseBoth(){ pause(); sync(); }
+
+          bPrev.addEventListener('click', function(){ pauseBoth(); step(-1); sync(); });
+          bNext.addEventListener('click', function(){ pauseBoth(); step(1); sync(); });
+          bPlay.addEventListener('click', function(){ playing ? pauseBoth() : playBoth(); });
+          bRange.addEventListener('input', function(){ pauseBoth(); updateBoth(parseInt(this.value,10)); });
+          bSpeed.addEventListener('change', function(){
+            speed = parseInt(this.value, 10) || 1000;
+            if (playing){ pauseBoth(); playBoth(); }
+          });
+
+          // Mantén sincronía si solo usas los de arriba
+          range.addEventListener('input', sync);
+          btnPlay.addEventListener('click', sync);
+          speedSel.addEventListener('change', sync);
+        }
+      })();
+    </script>
+  </body>
+</html>
+

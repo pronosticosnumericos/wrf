@@ -1,0 +1,12 @@
+<PAMDataset>
+  <PAMRasterBand band="1">
+    <Description>Mean 2-m air temperature (°C)</Description>
+    <Metadata>
+      <MDI key="STATISTICS_MAXIMUM">32.762023925781</MDI>
+      <MDI key="STATISTICS_MEAN">26.28648690714</MDI>
+      <MDI key="STATISTICS_MINIMUM">9.4227905273438</MDI>
+      <MDI key="STATISTICS_STDDEV">2.9429823250927</MDI>
+      <MDI key="STATISTICS_VALID_PERCENT">26.53</MDI>
+    </Metadata>
+  </PAMRasterBand>
+</PAMDataset>
